@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Trolley Problem Navigator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; transition: background-color 0.5s ease; }
+        .stage { display: none; opacity: 0; transition: opacity 0.8s ease-in-out; min-height: 500px; }
+        .stage.active { display: block; opacity: 1; }
+        .btn { transition: all 0.3s ease; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .panel { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .prompt-card, .scenario-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .prompt-card:hover, .scenario-card:hover { transform: scale(1.02); box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        .track-container { position: relative; width: 100%; height: 200px; margin: 1rem auto; }
+        .track { position: absolute; background-color: #4a5568; height: 8px; border-radius: 4px; }
+        .track-approach { width: 40%; top: 50%; left: 0; transform: translateY(-50%); }
+        .track-main-path { width: 60%; top: 50%; left: 40%; transform: translateY(-50%); }
+        .track-side-path { width: 50%; top: 50%; left: 40%; transform: translateY(-50%) rotate(30deg); transform-origin: top left; }
+        .person { position: absolute; width: 12px; height: 30px; background-color: #e2e8f0; border-radius: 6px 6px 0 0; }
+        .p1 { top: 40%; left: 60%; }
+        .p2 { top: 40%; left: 68%; }
+        .p3 { top: 40%; left: 76%; }
+        .p4 { top: 40%; left: 84%; }
+        .p5 { top: 40%; left: 92%; }
+        /* Definitive corrected position for person on side track */
+        .p6 { top: 65%; left: 58%; transform: rotate(30deg); }
+
+        /* Footbridge visualization */
+        .bridge-container { position: relative; width: 100%; height: 200px; margin: 1rem auto; }
+        .bridge-track { width: 100%; top: 80%; left: 0; }
+        .bridge { position: absolute; top: 20%; left: 10%; width: 80%; height: 20px; background-color: #6b7280; border-bottom: 4px solid #4b5563;}
+        .bridge-person { top: 5%; left: 45%; } .bridge-observer { top: 5%; left: 55%; border: 2px solid #60a5fa; }
+        .bridge-group1 { top: 70%; left: 60%; } .bridge-group2 { top: 70%; left: 68%; } .bridge-group3 { top: 70%; left: 76%; } .bridge-group4 { top: 70%; left: 84%; } .bridge-group5 { top: 70%; left: 92%; }
+        .chat-bubble { max-width: 75%; }
+        .chat-bubble.ai { background-color: #374151; }
+        .chat-bubble.user { background-color: #1e40af; align-self: flex-end; }
+        .modal { display: none; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl mx-auto">
+        <h1 id="app-title" class="text-3xl md:text-4xl font-bold text-center mb-2 text-gray-300 transition-all duration-500">The Trolley Problem Navigator</h1>
+        <p id="app-subtitle" class="text-center text-gray-500 mb-8 transition-all duration-500">An interactive exercise in ethical reasoning.</p>
+
+        <!-- NEW WELCOME STAGE -->
+        <div id="stage--1" class="stage active">
+            <div class="bg-gray-800 p-8 rounded-lg shadow-2xl border border-gray-700 text-left">
+                <h2 class="text-2xl font-semibold mb-4 text-center text-gray-100">Welcome!</h2>
+                <p class="text-gray-400 mb-6">This is an interactive tool designed to help you explore the architecture of your own ethical reasoning. Before you begin, please review the following:</p>
+                
+                <div class="space-y-4 bg-gray-900/50 p-6 rounded-lg border border-gray-700">
+                    <div>
+                        <h3 class="font-bold text-lg text-blue-400">Your Privacy is Protected</h3>
+                        <p class="text-gray-300 mt-1">All of your responses and choices are stored <strong class="text-white">only in your browser on this computer.</strong> No data is sent to or saved on any external server. The optional AI Guide requires a Gemini API key, which is also stored securely in your browser and is not shared.</p>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-blue-400">The Learning Goal</h3>
+                        <p class="text-gray-300 mt-1">The objective is not to find the "right" answer. The goal is to practice a method of ethical analysis, build self-awareness about your own reasoning process, and see how context transforms a problem.</p>
+                    </div>
+                </div>
+
+                <div class="text-center mt-8">
+                    <button onclick="moveToStage(0)" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg text-lg">Start the Simulation</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STAGES 0 through 7 -->
+        <div id="stage-0" class="stage">
+             <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center border border-gray-700">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-100">Stage 1: Choose Your Dilemma</h2>
+                <p class="text-lg text-gray-400 mb-6">Select which version of the problem you wish to navigate.</p>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="scenario-card bg-gray-900/50 p-6 rounded-lg border border-gray-700 cursor-pointer" onclick="selectScenario('switch')">
+                        <h3 class="text-xl font-bold text-blue-400">The Switch Case</h3>
+                        <div class="track-container">
+                            <div class="track track-approach"></div><div class="track track-main-path"></div><div class="track track-side-path"></div>
+                            <div class="person p1"></div><div class="person p2"></div><div class="person p3"></div><div class="person p4"></div><div class="person p5"></div><div class="person p6"></div>
+                        </div>
+                        <p class="text-gray-400">Pull a lever to divert the trolley.</p>
+                    </div>
+                    <div class="scenario-card bg-gray-900/50 p-6 rounded-lg border border-gray-700 cursor-pointer" onclick="selectScenario('footbridge')">
+                         <h3 class="text-xl font-bold text-blue-400">The Footbridge Case</h3>
+                         <div class="bridge-container">
+                             <div class="track bridge-track"></div><div class="bridge"></div>
+                             <div class="person bridge-person"></div><div class="person bridge-observer"></div>
+                             <div class="person bridge-group1"></div><div class="person bridge-group2"></div><div class="person bridge-group3"></div><div class="person bridge-group4"></div><div class="person bridge-group5"></div>
+                         </div>
+                         <p class="text-gray-400">Push a person off a bridge to stop the trolley.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="stage-1" class="stage">
+            <div id="scenario-display" class="bg-gray-800 p-8 rounded-lg shadow-2xl text-center border border-gray-700"></div>
+        </div>
+        <div id="stage-2" class="stage">
+             <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 2: Disambiguation Mode</h2>
+                <p class="text-center text-gray-400 mb-8">Ethical decisions are never made in a vacuum. Let's add the context you are actually in.</p>
+                <div id="prompts-container" class="space-y-6 text-left"></div>
+            </div>
+        </div>
+        <div id="stage-3" class="stage">
+            <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 3: Your Personal Reality Framework</h2>
+                <p class="text-center text-gray-400 mb-8">How is your internal ethical architecture processing this dilemma? Let's analyze your response.</p>
+                 <div id="prf-container" class="space-y-6 text-left"></div>
+            </div>
+        </div>
+        <div id="stage-4" class="stage">
+             <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 4: The Action Plan</h2>
+                <p class="text-center text-gray-400 mb-8">A coherent response is more than a choice. It's a plan. Describe your actions.</p>
+                <div class="text-left space-y-6">
+                    <div>
+                        <label for="action-sequence" class="block mb-2 text-sm font-medium text-gray-300">Action Sequence:</label>
+                        <textarea id="action-sequence" rows="4" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g., 1. Pull the lever. 2. Immediately radio for emergency services..."></textarea>
+                    </div>
+                    <div>
+                        <label for="communication-plan" class="block mb-2 text-sm font-medium text-gray-300">Communication Plan:</label>
+                        <textarea id="communication-plan" rows="3" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500" placeholder="Who do you need to communicate with, and what is your message?"></textarea>
+                    </div>
+                     <div class="flex justify-center gap-4 pt-4">
+                        <button onclick="goBack(3)" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg">Back</button>
+                        <button onclick="moveToStage(5)" class="btn bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-lg">Finalize Plan & Reflect</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="stage-5" class="stage">
+            <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 5: Reflection & Temporal Coherence</h2>
+                <p class="text-center text-gray-400 mb-8">Consider the long-term impact of your action plan on your moral identity.</p>
+                <div class="text-left space-y-6 bg-gray-900/50 p-6 rounded-lg">
+                    <p class="text-lg">Your initial, gut-level choice was: <span id="initial-choice-display-s5" class="font-bold text-blue-400"></span></p>
+                    <p class="text-lg">Your final, contextualized plan is far more comprehensive. Now, consider your future:</p>
+                     <div>
+                        <label for="historical-continuity" class="block mb-2 text-sm font-medium text-gray-300">Historical Continuity:</label>
+                        <textarea id="historical-continuity" rows="3" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600" placeholder="How does this action fit into the story of your life and moral development?"></textarea>
+                    </div>
+                     <div>
+                        <label for="prospective-coherence" class="block mb-2 text-sm font-medium text-gray-300">Prospective Coherence:</label>
+                        <textarea id="prospective-coherence" rows="3" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600" placeholder="Can you project a coherent, authentic future for yourself after this event?"></textarea>
+                    </div>
+                </div>
+                 <div class="flex justify-center gap-4 pt-6">
+                    <button onclick="goBack(4)" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg">Back</button>
+                    <button onclick="moveToStage(6)" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg">See My Debrief</button>
+                </div>
+            </div>
+        </div>
+        <div id="stage-6" class="stage">
+            <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 6: Your Ethical Debrief</h2>
+                <p class="text-center text-gray-400 mb-8">A reflection on your reasoning process, based on your responses.</p>
+                <div id="debrief-content" class="text-left space-y-6"></div>
+                <div class="flex justify-center gap-4 pt-6">
+                    <button onclick="goBack(5)" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg">Back</button>
+                    <button onclick="openApiKeyModal()" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-8 rounded-lg">Discuss with AI Guide</button>
+                </div>
+            </div>
+        </div>
+        <div id="stage-7" class="stage">
+             <div class="p-8 rounded-lg shadow-2xl border border-gray-700 bg-gray-800/80 panel">
+                <h2 class="text-2xl font-semibold mb-2 text-center text-gray-100">Stage 7: Reflective Dialogue</h2>
+                <p class="text-center text-gray-400 mb-8">Engage with an AI Socratic Guide to explore your reasoning.</p>
+                <div id="chat-window" class="bg-gray-900/50 p-4 rounded-lg h-96 flex flex-col space-y-4 overflow-y-auto">
+                </div>
+                 <div class="mt-4 flex gap-4">
+                    <input id="chat-input" type="text" class="flex-grow bg-gray-700 text-white p-3 rounded-lg border border-gray-600" placeholder="Type your response..." onkeydown="if(event.key === 'Enter') sendMessage()">
+                    <button id="send-button" onclick="sendMessage()" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg">Send</button>
+                </div>
+                <div class="flex justify-center gap-4 pt-6">
+                    <button onclick="goBack(6)" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg">Back to Debrief</button>
+                    <button class="btn bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 rounded-lg opacity-50 cursor-not-allowed">Revisit an Earlier Stage</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Modal -->
+    <div id="api-key-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+        <div class="bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md text-center border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-100">Enter Your Gemini API Key</h2>
+            <p class="text-gray-400 mb-6">To enable the AI Guide, please provide your Google AI Studio API key. This key will be saved in your browser's local storage for future use on this computer only.</p>
+            <input id="api-key-input" type="password" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 mb-4" placeholder="Enter your API key here...">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-400 hover:underline text-sm">How to get a key?</a>
+            <div class="flex justify-center gap-4 mt-6">
+                <button onclick="closeApiKeyModal()" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Cancel</button>
+                <button onclick="startChat()" class="btn bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-6 rounded-lg">Start Chat</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- App State ---
+        let appState = {
+            currentStage: -1,
+            scenario: null,
+            initialChoice: null,
+            contextualResponses: {},
+            prfResponses: {},
+            actionPlan: {},
+            atcfResponses: {},
+            apiKey: null,
+            chatHistory: []
+        };
+
+        // --- On Page Load ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('geminiApiKey');
+            if (savedKey) {
+                appState.apiKey = savedKey;
+                document.getElementById('api-key-input').value = savedKey;
+            }
+        });
+
+        // --- Stage Data ---
+        const scenarios = {
+            'switch': {
+                title: 'The Switch Case',
+                imageHtml: `<div class="track-container"><div class="track track-approach"></div><div class="track track-main-path"></div><div class="track track-side-path"></div><div class="person p1"></div><div class="person p2"></div><div class="person p3"></div><div class="person p4"></div><div class="person p5"></div><div class="person p6"></div></div>`,
+                dilemma: 'A runaway trolley will kill five people on the track ahead. You can pull a lever to divert it to a side track, where it will kill one person. What do you do?',
+                choices: [{ text: 'Pull the Lever', value: 'pull' }, { text: 'Do Nothing', value: 'nothing' }],
+                capabilitiesPrompt: "You are not just a bystander; you are the trolley operator who failed to apply the brake in time. To what degree does your responsibility affect your decision?"
+            },
+            'footbridge': {
+                title: 'The Footbridge Case',
+                imageHtml: `<div class="bridge-container"><div class="track bridge-track"></div><div class="bridge"></div><div class="person bridge-person"></div><div class="person bridge-observer"></div><div class="person bridge-group1"></div><div class="person bridge-group2"></div><div class="person bridge-group3"></div><div class="person bridge-group4"></div><div class="person bridge-group5"></div></div>`,
+                dilemma: 'A runaway trolley will kill five people. You are on a footbridge above the track next to a person large enough to stop the trolley. Pushing them onto the track will stop the trolley but kill them. You are not large enough to stop it yourself. What do you do?',
+                choices: [{ text: 'Push the Person', value: 'push' }, { text: 'Do Nothing', value: 'nothing' }],
+                capabilitiesPrompt: "You are the only one physically capable of pushing the person. This is a direct, physical act. To what degree does the nature of this action affect your decision?"
+            }
+        };
+        const stage2Prompts = [
+            { id: 'people', question: "Who are the people?", text: "The one person is a visiting doctor, a mother of two. The five people are members of a notorious local gang known for violence. To what degree does this change your calculation?", options: ["It completely changes my view", "It influences my decision somewhat", "It doesn't influence my decision at all"] },
+            { id: 'systems', question: "What are the system dynamics?", text: "The trolley company has a history of cutting corners on safety. The local media is already on the scene. How does this influence your thinking?", options: ["It strongly shifts my focus to accountability", "It adds pressure, but doesn't change the choice", "It is a distraction from the immediate crisis"] },
+            { id: 'consequences', question: "What are the long-term consequences?", text: "There will be a federal investigation, lawsuits, and funerals. You will have to testify. How does this knowledge of the 'aftermath' shape your choice?", options: ["It is a primary consideration in my decision", "It is important, but secondary to the lives at stake", "I must ignore it and focus on the immediate action"] }
+        ];
+        const stage3Prompts = [
+            { id: 'rules', type: 'radio', question: "Rules (R):", text: "Which of your core principles feels most active or conflicted right now?", options: ["Minimize total harm (Utilitarian)", "Never intentionally use a person as a means to an end (Deontological)", "Fulfill my professional duty (if applicable)", "Protect the innocent"]},
+            { id: 'beliefs', type: 'radio', question: "Beliefs (B):", text: "What assumption is guiding your judgment the most?", options: ["Some lives are more valuable to society", "All lives have equal intrinsic value", "My own survival (legal/social) is a key factor", "The morality is in the act itself, not the consequences"]},
+            { id: 'authenticity', type: 'radio', question: "Authenticity (A+):", text: "Which description best fits the person you strive to be in this moment?", options: ["Someone who makes the tough, rational choice", "Someone who refuses to have blood on their hands", "Someone who accepts responsibility for their role", "Someone who intervenes to save lives"]}
+        ];
+        
+        // --- UI Rendering ---
+        function renderPrompts(containerId, prompts, stateObject) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            prompts.forEach((prompt) => {
+                const card = document.createElement('div');
+                card.className = 'prompt-card bg-gray-900/50 p-6 rounded-lg border border-gray-700 shadow-lg';
+                let optionsHtml = prompt.options.map(option => `
+                    <label class="block mt-2">
+                        <input type="radio" name="${prompt.id}" value="${option}" class="mr-2" onchange="updateResponse('${containerId === 'prompts-container' ? 'contextual' : 'prf'}', '${prompt.id}', this.value)" ${stateObject[prompt.id] === option ? 'checked' : ''}>
+                        <span class="text-gray-300">${option}</span>
+                    </label>`).join('');
+                card.innerHTML = `<h3 class="font-semibold text-lg text-blue-400">${prompt.question}</h3><p class="text-gray-400 mt-1">${prompt.text}</p><div class="mt-4">${optionsHtml}</div>`;
+                container.appendChild(card);
+            });
+            const navContainer = document.createElement('div');
+            navContainer.className = 'flex justify-center gap-4 mt-8';
+            navContainer.innerHTML = `
+                <button onclick="goBack(${appState.currentStage - 1})" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg">Back</button>
+                <button onclick="moveToStage(${appState.currentStage + 1})" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded-lg">Continue</button>
+            `;
+            container.appendChild(navContainer);
+        }
+        
+        // --- State Management & Logic ---
+        function selectScenario(scenarioType) {
+            appState.scenario = scenarioType;
+            const scenario = scenarios[scenarioType];
+            const display = document.getElementById('scenario-display');
+            display.innerHTML = `
+                <h2 class="text-2xl font-semibold mb-4 text-gray-100">${scenario.title}</h2>
+                ${scenario.imageHtml}
+                <p class="text-lg text-gray-400 mb-6">${scenario.dilemma}</p>
+                <div class="flex justify-center gap-4">
+                    <button onclick="makeChoice('${scenario.choices[0].value}')" class="btn bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg">${scenario.choices[0].text}</button>
+                    <button onclick="makeChoice('${scenario.choices[1].value}')" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg">${scenario.choices[1].text}</button>
+                </div>
+                 <div class="mt-8">
+                    <button onclick="goBack(0)" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Change Scenario</button>
+                </div>`;
+            moveToStage(1);
+        }
+
+        function makeChoice(choice) { appState.initialChoice = choice; moveToStage(2); }
+        function updateResponse(type, id, value) { (type === 'contextual' ? appState.contextualResponses : appState.prfResponses)[id] = value; }
+        function goBack(stageNumber) { moveToStage(stageNumber); }
+
+        function openApiKeyModal() {
+            if (appState.apiKey) {
+                startChat(); // If key is already loaded, just start the chat.
+            } else {
+                document.getElementById('api-key-modal').classList.add('active');
+            }
+        }
+        function closeApiKeyModal() { document.getElementById('api-key-modal').classList.remove('active'); }
+
+        function generateDebrief() {
+            const container = document.getElementById('debrief-content');
+            let consistencyText = "Your responses showed a consistent approach to the problem, balancing different factors as you moved through the simulation.";
+            if (appState.prfResponses.rules?.includes('professional duty') && appState.contextualResponses.capabilities?.includes('most important factor')) {
+                consistencyText = "We noticed a strong consistency in your reasoning. You prioritized your **Rule** to 'Fulfill my professional duty', which aligns perfectly with your focus on your own **Responsibility** in the Disambiguation stage. This indicates a well-integrated, role-based ethical framework.";
+            }
+            let tensionText = "Your reasoning appeared to resolve major tensions as you progressed. Consider if any smaller, unstated conflicts remain in your own reflection.";
+            if (appState.prfResponses.beliefs === 'All lives have equal intrinsic value' && appState.contextualResponses.people === 'It completely changes my view') {
+                tensionText = "Here is a point of tension to consider: You selected the **Belief** that 'All lives have equal intrinsic value.' However, your choice was 'completely changed' by learning the identities of the people involved. This suggests a potential conflict between your stated abstract belief and your operational principles in a crisis. This is a common tension in ethical reasoning.";
+            }
+            container.innerHTML = `
+                <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                    <h3 class="font-bold text-lg text-blue-400">Section 1: The Journey of Your Choice</h3>
+                    <p class="mt-2">Your initial, intuitive choice was: <strong class="text-white">${appState.initialChoice === 'nothing' ? '"Do Nothing"' : (appState.scenario === 'switch' ? '"Pull the Lever"' : '"Push the Person"')}</strong>.</p>
+                </div>
+                <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                    <h3 class="font-bold text-lg text-blue-400">Section 2: Analysis of Your Reasoning Engine (PRF)</h3>
+                    <p class="mt-2"><strong class="text-green-400">Consistency:</strong> ${consistencyText}</p>
+                    <p class="mt-2"><strong class="text-yellow-400">Tension:</strong> ${tensionText}</p>
+                </div>`;
+            return tensionText;
+        }
+        
+        function moveToStage(stageNumber) {
+            if (stageNumber === 2) {
+                const scenario = scenarios[appState.scenario];
+                const dynamicPrompt = {id: 'capabilities', question: "What are your capabilities?", text: scenario.capabilitiesPrompt, options: ["It is now the most important factor", "It is a significant factor", "It is a minor factor", "It doesn't change the core dilemma"] };
+                renderPrompts('prompts-container', [stage2Prompts[0], dynamicPrompt, ...stage2Prompts.slice(1)], appState.contextualResponses);
+            } else if (stageNumber === 3) {
+                renderPrompts('prf-container', stage3Prompts, appState.prfResponses);
+            } else if (stageNumber === 5) {
+                let choiceText = appState.initialChoice === 'nothing' ? '"Do Nothing"' : (appState.scenario === 'switch' ? '"Pull the Lever"' : '"Push the Person"');
+                document.getElementById('initial-choice-display-s5').innerText = choiceText;
+            } else if (stageNumber === 6) {
+                 appState.actionPlan.sequence = document.getElementById('action-sequence').value;
+                 appState.actionPlan.communication = document.getElementById('communication-plan').value;
+                 generateDebrief();
+            } else if (stageNumber === 7) {
+                 appState.atcfResponses.historical = document.getElementById('historical-continuity').value;
+                 appState.atcfResponses.prospective = document.getElementById('prospective-coherence').value;
+            }
+            const currentStageEl = document.getElementById(`stage-${appState.currentStage}`);
+            if (currentStageEl) currentStageEl.classList.remove('active');
+            appState.currentStage = stageNumber;
+            const nextStageEl = document.getElementById(`stage-${stageNumber}`);
+            if (nextStageEl) {
+                document.body.style.backgroundColor = (stageNumber >= 0) ? '#1f2937' : '#111827';
+                document.getElementById('app-title').classList.toggle('text-xl', stageNumber >= 0);
+                document.getElementById('app-subtitle').classList.toggle('text-sm', stageNumber >= 0);
+                nextStageEl.classList.add('active');
+            }
+        }
+        
+        // --- AI Chat Functionality ---
+        async function startChat() {
+            const apiKey = document.getElementById('api-key-input').value;
+            if (!apiKey) {
+                alert('Please enter a valid API key.');
+                return;
+            }
+            appState.apiKey = apiKey;
+            localStorage.setItem('geminiApiKey', apiKey); // Save the key
+            closeApiKeyModal();
+            moveToStage(7);
+
+            // Prepare and send the initial message to the AI
+            const tensionText = generateDebrief(); // Get the identified tension
+            const openingPrompt = `You are a Socratic Guide for an ethics simulation. Your goal is to help me reflect on my reasoning, not to judge my choices. My debrief identified a key tension: "${tensionText}". Please start our conversation by asking me a curious, open-ended question about this specific tension.`;
+            
+            appState.chatHistory = []; // Clear history for a new chat
+            addMessageToChat('ai', 'Thinking...');
+            await callGemini(openingPrompt, true); // `true` for initial prompt
+        }
+
+        function addMessageToChat(role, text) {
+            const chatWindow = document.getElementById('chat-window');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-bubble p-3 rounded-lg ${role}`;
+            messageDiv.innerHTML = `<p class="text-sm font-bold ${role === 'ai' ? 'text-blue-400' : 'text-gray-300'}">${role === 'ai' ? 'AI Guide' : 'You'}</p><p>${text}</p>`;
+            chatWindow.appendChild(messageDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessageToChat('user', message);
+            appState.chatHistory.push({ role: 'user', parts: [{ text: message }] });
+            input.value = '';
+            
+            addMessageToChat('ai', 'Thinking...');
+            await callGemini(message);
+        }
+
+        async function callGemini(prompt, isInitial = false) {
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${appState.apiKey}`;
+
+            // Remove the "Thinking..." bubble before adding the real response
+            const chatWindow = document.getElementById('chat-window');
+            if (chatWindow.lastChild && chatWindow.lastChild.innerText.includes('Thinking...')) {
+                chatWindow.removeChild(chatWindow.lastChild);
+            }
+
+            try {
+                const systemInstruction = {
+                    role: "system",
+                    parts: [{text: "You are a Socratic Guide for an ethics simulation. Your goal is to help me reflect on my reasoning, not to judge my choices. Ask curious, open-ended questions. Keep your responses concise (2-3 sentences)."}]
+                };
+
+                let contents;
+                if (isInitial) {
+                    // For the very first message, we send the special prompt.
+                    contents = [{ role: 'user', parts: [{ text: prompt }] }];
+                    appState.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+                } else {
+                    // For subsequent messages, we send the history.
+                    contents = [systemInstruction, ...appState.chatHistory];
+                }
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: contents })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error.message || 'An unknown API error occurred.');
+                }
+                
+                const data = await response.json();
+                const aiResponse = data.candidates[0].content.parts[0].text;
+
+                addMessageToChat('ai', aiResponse);
+                appState.chatHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
+
+            } catch (error) {
+                addMessageToChat('ai', `Sorry, I encountered an error: ${error.message}`);
+                console.error("Gemini API Error:", error);
+            }
+        }
+    </script>
+</body>
+</html>
+
