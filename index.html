@@ -26,7 +26,6 @@
         .p3 { top: 40%; left: 76%; }
         .p4 { top: 40%; left: 84%; }
         .p5 { top: 40%; left: 92%; }
-        /* Definitive corrected position for person on side track */
         .p6 { top: 65%; left: 58%; transform: rotate(30deg); }
 
         /* Footbridge visualization */
@@ -48,7 +47,7 @@
         <h1 id="app-title" class="text-3xl md:text-4xl font-bold text-center mb-2 text-gray-300 transition-all duration-500">The Trolley Problem Navigator</h1>
         <p id="app-subtitle" class="text-center text-gray-500 mb-8 transition-all duration-500">An interactive exercise in ethical reasoning.</p>
 
-        <!-- NEW WELCOME STAGE -->
+        <!-- WELCOME STAGE -->
         <div id="stage--1" class="stage active">
             <div class="bg-gray-800 p-8 rounded-lg shadow-2xl border border-gray-700 text-left">
                 <h2 class="text-2xl font-semibold mb-4 text-center text-gray-100">Welcome!</h2>
@@ -359,32 +358,54 @@
             }
         }
         
-        // --- AI Chat Functionality ---
+        // --- AI Chat Functionality (REVISED) ---
         async function startChat() {
             const apiKey = document.getElementById('api-key-input').value;
             if (!apiKey) {
+                // Using a custom modal/alert in a real app would be better, but for this fix, alert is fine.
                 alert('Please enter a valid API key.');
                 return;
             }
             appState.apiKey = apiKey;
             localStorage.setItem('geminiApiKey', apiKey); // Save the key
             closeApiKeyModal();
+            
+            document.getElementById('chat-window').innerHTML = ''; // Clear previous chat UI
             moveToStage(7);
 
             // Prepare and send the initial message to the AI
             const tensionText = generateDebrief(); // Get the identified tension
-            const openingPrompt = `You are a Socratic Guide for an ethics simulation. Your goal is to help me reflect on my reasoning, not to judge my choices. My debrief identified a key tension: "${tensionText}". Please start our conversation by asking me a curious, open-ended question about this specific tension.`;
+            const initialUserMessage = `I've just completed the Trolley Problem simulation. My debrief identified this tension in my reasoning: "${tensionText}". Let's discuss this.`;
             
-            appState.chatHistory = []; // Clear history for a new chat
+            appState.chatHistory = [{ role: 'user', parts: [{ text: initialUserMessage }] }]; // Start history with the user's context
+            
             addMessageToChat('ai', 'Thinking...');
-            await callGemini(openingPrompt, true); // `true` for initial prompt
+            await callGemini();
         }
 
         function addMessageToChat(role, text) {
             const chatWindow = document.getElementById('chat-window');
+            
+            // Remove the "Thinking..." bubble before adding the real response
+            if (role !== 'ai' || !text.includes('Thinking...')) {
+                const thinkingBubble = chatWindow.querySelector('.thinking');
+                if (thinkingBubble) {
+                    thinkingBubble.remove();
+                }
+            }
+
             const messageDiv = document.createElement('div');
-            messageDiv.className = `chat-bubble p-3 rounded-lg ${role}`;
-            messageDiv.innerHTML = `<p class="text-sm font-bold ${role === 'ai' ? 'text-blue-400' : 'text-gray-300'}">${role === 'ai' ? 'AI Guide' : 'You'}</p><p>${text}</p>`;
+            messageDiv.className = `chat-bubble p-3 rounded-lg ${role === 'ai' ? 'ai' : 'user'}`;
+            
+            // Add a special class for the thinking bubble to find it easily
+            if (role === 'ai' && text.includes('Thinking...')) {
+                messageDiv.classList.add('thinking');
+            }
+
+            // Sanitize text to prevent HTML injection
+            const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            
+            messageDiv.innerHTML = `<p class="text-sm font-bold ${role === 'ai' ? 'text-blue-400' : 'text-gray-300'}">${role === 'ai' ? 'AI Guide' : 'You'}</p><p>${safeText}</p>`;
             chatWindow.appendChild(messageDiv);
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
@@ -399,38 +420,24 @@
             input.value = '';
             
             addMessageToChat('ai', 'Thinking...');
-            await callGemini(message);
+            await callGemini();
         }
 
-        async function callGemini(prompt, isInitial = false) {
-            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${appState.apiKey}`;
+        async function callGemini() {
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${appState.apiKey}`;
 
-            // Remove the "Thinking..." bubble before adding the real response
-            const chatWindow = document.getElementById('chat-window');
-            if (chatWindow.lastChild && chatWindow.lastChild.innerText.includes('Thinking...')) {
-                chatWindow.removeChild(chatWindow.lastChild);
-            }
+            const systemInstruction = {
+                parts: [{text: "You are a Socratic Guide for an ethics simulation. Your goal is to help the user reflect on their reasoning, not to judge their choices. Ask curious, open-ended questions to probe their thinking. Keep your responses concise (2-4 sentences)."}]
+            };
 
             try {
-                const systemInstruction = {
-                    role: "system",
-                    parts: [{text: "You are a Socratic Guide for an ethics simulation. Your goal is to help me reflect on my reasoning, not to judge my choices. Ask curious, open-ended questions. Keep your responses concise (2-3 sentences)."}]
-                };
-
-                let contents;
-                if (isInitial) {
-                    // For the very first message, we send the special prompt.
-                    contents = [{ role: 'user', parts: [{ text: prompt }] }];
-                    appState.chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
-                } else {
-                    // For subsequent messages, we send the history.
-                    contents = [systemInstruction, ...appState.chatHistory];
-                }
-
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: contents })
+                    body: JSON.stringify({ 
+                        contents: appState.chatHistory,
+                        systemInstruction: systemInstruction 
+                    })
                 });
 
                 if (!response.ok) {
@@ -439,8 +446,13 @@
                 }
                 
                 const data = await response.json();
-                const aiResponse = data.candidates[0].content.parts[0].text;
+                
+                if (!data.candidates || !data.candidates[0].content.parts[0].text) {
+                     throw new Error("Received an invalid response from the API.");
+                }
 
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                
                 addMessageToChat('ai', aiResponse);
                 appState.chatHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
 
@@ -452,4 +464,3 @@
     </script>
 </body>
 </html>
-
